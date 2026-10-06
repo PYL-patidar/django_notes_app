@@ -30,7 +30,3 @@ docker run -d -p 8000:8000 notes-app:latest
 ```
 docker compose up --build -d 
 ```
-
-## Nginx
-Nginx reverse proxy to make this application available
-
