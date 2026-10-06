@@ -1,56 +1,58 @@
-version: "3.8"
-
 services:
-  nginx:
-    build: ./nginx
-    image: nginx
-    container_name: "nginx_cont"
+  mysql:
+    image: mysql:latest
+    container_name: db-cont
     ports:
-      - "80:80"
-    restart: always
-    depends_on:
-      - django_app
-    networks:
-      - notes-app-nw
-
-  django_app:
-    build:
-      context: .
-    image: django_app
-    container_name: "django_cont"
-    ports:
-      - "8000:8000"
-    command: sh -c "python manage.py migrate --noinput && gunicorn notesapp.wsgi --bind 0.0.0.0:8000"
-    env_file:
-      - ".env"
-    depends_on:
-      - db
-    restart: always
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/admin || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    networks:
-      - notes-app-nw
-
-  db:
-    image: mysql
-    container_name: "db_cont"
+      - "3306:3306"
     environment:
       - MYSQL_ROOT_PASSWORD=root
-      - MYSQL_DATABASE=test_db
+      - MYSQL_DATABASE=app-db
+    networks:
+      - notesapp-nw
     volumes:
-      - ./data/mysql/db:/var/lib/mysql
+      - mysql-data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 60s
-    networks:
-      - notes-app-nw
 
+  nginx:
+    build:
+      context: ./nginx
+    image: nginx:latest
+    container_name: nginx
+    ports:
+      - "80:80"
+    networks:
+      - notesapp-nw
+    restart: always
+    depends_on:
+      notes-app:
+        condition: service_healthy
+
+  notes-app:
+    build:
+      context: .
+    container_name: notesapp
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    ports:
+      - "8000:8000"
+    networks:
+      - notesapp-nw
+    env_file:
+      - ".env"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/admin || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 networks:
-  notes-app-nw:
+  notesapp-nw:
+volumes:
+  mysql-data:
